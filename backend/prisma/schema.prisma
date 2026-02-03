@@ -1,0 +1,169 @@
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+model Student {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memoryEntries MemoryEntry[]
+  responses     Response[]
+  scheduleEvents ScheduleEvent[]
+  auditLogs     AuditLog[]
+}
+
+model Course {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  documents     Document[]
+  memoryEntries MemoryEntry[]
+}
+
+model Document {
+  id        String   @id @default(uuid())
+  title     String
+  content   String   @db.Text
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Concept {
+  id        String   @id @default(uuid())
+  label     String
+  embedding Unsupported("vector(768)")?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memoryEntries MemoryEntry[]
+  questions     Question[]
+}
+
+model MemoryEntry {
+  id          String   @id @default(uuid())
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id])
+  conceptId   String
+  concept     Concept  @relation(fields: [conceptId], references: [id])
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id])
+  
+  masteryProbability Float @default(0.5)
+  lastReview         DateTime?
+  nextReview         DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Quiz {
+  id        String   @id @default(uuid())
+  title     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  questions Question[]
+}
+
+model Question {
+  id        String   @id @default(uuid())
+  text      String
+  type      String   // e.g., "multiple-choice", "short-answer"
+  options   Json?    // For multiple choice
+  answer    String
+  conceptId String
+  concept   Concept  @relation(fields: [conceptId], references: [id])
+  quizId    String?
+  quiz      Quiz?    @relation(fields: [quizId], references: [id])
+  
+  responses Response[]
+}
+
+model Response {
+  id         String   @id @default(uuid())
+  studentId  String
+  student    Student  @relation(fields: [studentId], references: [id])
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id])
+  
+  isCorrect  Boolean
+  latencyMs  Int
+  timestamp  DateTime @default(now())
+}
+
+model ScheduleEvent {
+  id        String   @id @default(uuid())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id])
+  scheduledAt DateTime
+  type      String   // "review", "quiz"
+  status    String   // "pending", "completed", "missed"
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String
+  payload   Json
+  studentId String?
+  student   Student? @relation(fields: [studentId], references: [id])
+  timestamp DateTime @default(now())
+}
+
+// EstimateAI Models
+
+model Task {
+  id            Int      @id @default(autoincrement())
+  title         String
+  description   String   @db.Text
+  category      String?
+  actual_effort String? 
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  embeddings    Embedding[]
+  estimations   EstimationHistory[]
+}
+
+model Embedding {
+  id          Int      @id @default(autoincrement())
+  taskId      Int
+  task        Task     @relation(fields: [taskId], references: [id])
+  model_name  String
+  vector_data Unsupported("vector")? 
+  createdAt   DateTime @default(now())
+}
+
+model EstimationHistory {
+  id               Int      @id @default(autoincrement())
+  taskId           Int
+  task             Task     @relation(fields: [taskId], references: [id])
+  predicted_effort String
+  explanation_text String   @db.Text
+  timestamp        DateTime @default(now())
+
+  feedbacks        Feedback[]
+}
+
+model Feedback {
+  id                Int               @id @default(autoincrement())
+  estimationId      Int
+  estimation        EstimationHistory @relation(fields: [estimationId], references: [id])
+  feedback_text     String            @db.Text
+  adjusted_estimate String?
+  createdAt         DateTime          @default(now())
+}
